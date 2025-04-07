@@ -9,6 +9,8 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from joblib import Parallel, delayed
+import os
 
 classifier_pool = [
     DecisionTreeClassifier(criterion='gini'),
@@ -64,59 +66,44 @@ def calculate_score(cell, neighbor, sample, classifiers, ca_grid):
     score = support * confidence * (1 / distance)  
     return score
 
-def classify_sample(sample, true_class, classifiers, ca_grid):
-    num_classes, num_classifiers = classifiers.shape
-    results = np.zeros((num_classes, num_classifiers), dtype=int)
-    
-    for j in range(num_classifiers):
-        clf = classifiers[true_class][j]
-        try:
-            predicted_class = clf.predict([sample])[0]
-            if predicted_class == true_class:
-                results[true_class, j] = 1
-            else:
-                results[true_class, j] = 0
-        except:
-            results[true_class, j] = -1
-    
-    update_energies(results, true_class, ca_grid, classifiers, sample)
-    return results
+def classify_sample(sample, true_class, clf, clf_idx):
+    try:
+        pred = clf.predict([sample])[0]
+        return 1 if pred == true_class else 0
+    except:
+        return -1
 
-def update_energies(results, true_class, ca_grid, classifiers, sample):
-    num_classes, num_classifiers = results.shape
-    
-    for j in range(num_classifiers):
-        eqScore = 0
-        noClassScore = 0
-        
-        for x in range(num_classes):
-            for y in range(num_classifiers):
-                if x == true_class and y != j:
-                    neighbor_clf = classifiers[x][y]
-                    neighbor_predicted_class = neighbor_clf.predict([sample])[0]
-                    score = calculate_score((true_class, j), (x, y), sample, classifiers, ca_grid)
-                    
-                    if neighbor_predicted_class == true_class:
-                        eqScore += score
-                    elif neighbor_predicted_class == -1:
-                        noClassScore += score
-        
-        if results[true_class, j] == 1:
-            if noClassScore > 0:
-                ca_grid[true_class, j] += (0.4 - (0.4 * noClassScore / eqScore))
-            else:
-                ca_grid[true_class, j] += 0.4
-        elif results[true_class, j] == 0:
-            if noClassScore > 0:
-                ca_grid[true_class, j] -= (0.1 + (0.1 * noClassScore / eqScore))
-            else:
-                ca_grid[true_class, j] -= 0.1
-        else:
-            ca_grid[true_class, j] -= 0.05
-        
-        ca_grid[true_class, j] = max(0, ca_grid[true_class, j])
+def update_energies(result, true_class, clf_idx, ca_grid, classifiers, sample):
+    eqScore = noClassScore = 0
+    for y in range(classifiers.shape[1]):
+        if y != clf_idx:
+            neighbor_clf = classifiers[true_class][y]
+            try:
+                neighbor_pred = neighbor_clf.predict([sample])[0]
+                score = calculate_score((true_class, clf_idx), (true_class, y), sample, classifiers, ca_grid)
+                if neighbor_pred == true_class: eqScore += score
+                elif neighbor_pred == -1: noClassScore += score
+            except: noClassScore += 1
 
-def visualize(grid_data, class_labels, classifier_labels, title):
+    if result == 1:
+        ca_grid[true_class, clf_idx] += 0.4 - (0.4 * noClassScore / max(eqScore, 1e-6))
+    elif result == 0:
+        ca_grid[true_class, clf_idx] -= 0.1 + (0.1 * noClassScore / max(eqScore, 1e-6))
+    else:
+        ca_grid[true_class, clf_idx] -= 0.05
+    ca_grid[true_class, clf_idx] = max(0, ca_grid[true_class, clf_idx])
+
+def visualize(grid_data, class_labels, classifier_labels, title,filename):
+    dataset_name = os.path.splitext(data_path)[0]
+    output_folder = os.path.join(os.getcwd(), 'output')
+    folder_name = f"{dataset_name}_MCS"
+    folder = os.path.join(output_folder, folder_name)
+    os.makedirs(folder, exist_ok=True)
+    if filename:
+        filepath = os.path.join(folder, filename)
+    else:
+        filepath = None
+
     plt.figure(figsize=(len(classifier_labels), len(class_labels)))
 
     vmin = np.min(grid_data)
@@ -131,30 +118,57 @@ def visualize(grid_data, class_labels, classifier_labels, title):
             value = grid_data[i, j]
             brightness = normalized_grid[i, j]  
             text_color = 'black' if brightness < 0.5 else 'white'
-            plt.text(j, i, f"{value:.2f}", ha='center', va='center', fontsize=10, color=text_color)
+            plt.text(j, i, f"{value:.2f}", ha='center', va='center', fontsize=6, color=text_color)
 
-    plt.xticks(range(cols), classifier_labels, rotation=45, ha="right", fontsize=10)
-    plt.yticks(range(rows), class_labels, fontsize=10)
+    plt.xticks(range(cols), classifier_labels, rotation=45, ha="right", fontsize=6)
+    plt.yticks(range(rows), class_labels, fontsize=6)
 
-    plt.xlabel("Classifiers", fontsize=12, fontweight='bold')
-    plt.ylabel("Classes", fontsize=12, fontweight='bold')
-    plt.title(title, fontsize=20, fontweight='bold')
-    plt.show()
+    plt.xlabel("Classifiers", fontsize=8, fontweight='bold')
+    plt.ylabel("Classes", fontsize=8, fontweight='bold')
+    plt.title(title, fontsize=12, fontweight='bold')
+    
+    if filepath:
+        plt.tight_layout()
+        plt.savefig(filepath, dpi=300)
+        plt.close()
+    else:
+        plt.show()
 
 def train(ca_grid, classifiers, X_train, y_train):
-    for sample, true_class in zip(X_train, y_train):
-        classify_sample(sample, true_class, classifiers, ca_grid)
-    
-    print("\nFinal training sample:", X_train[-1], "True class:", y_train[-1])
-    print("\nFinal CA Grid (Energies):")
+    print("\n=== Training phase ===\n")
+    num_classifiers = classifiers.shape[1]
+    n_jobs = min(num_classifiers, os.cpu_count())
+    global_grid = ca_grid.copy()
+
+    def process_classifier(class_idx, clf_idx):
+        local_grid = global_grid.copy()
+        clf = classifiers[class_idx][clf_idx]
+
+        for sample, true_class in zip(X_train, y_train):
+            if true_class != class_idx:
+                continue
+
+            result = classify_sample(sample, true_class, clf, clf_idx)
+            update_energies(result, true_class, clf_idx, local_grid, classifiers, sample)
+
+        return local_grid - global_grid
+
+    deltas = Parallel(n_jobs=n_jobs)(
+        delayed(process_classifier)(i, j)
+        for i in range(classifiers.shape[0])
+        for j in range(classifiers.shape[1])
+    )
+
+    ca_grid += sum(deltas)
+
+    print(f"\nFinal CA Grid (Energies):")
     print(ca_grid)
-    visualize(ca_grid, class_names, classifier_labels, "Final CA Grid (Energies)")
+    visualize(ca_grid, class_names, classifier_labels, "Final CA Grid (Energies)", filename="train_visualization.png")
 
 def test(ca_grid, classifiers, X_test, y_test, class_names, classifier_labels):
+    print("\n=== Testing phase ===\n")
     num_classes, num_classifiers = len(class_names), len(classifier_labels)
     accuracies = np.zeros((num_classes, num_classifiers))
-
-    print("\n=== Model Evaluation on Test Set ===\n")
 
     y_pred = np.zeros((num_classes, len(y_test)))
     
@@ -176,9 +190,11 @@ def test(ca_grid, classifiers, X_test, y_test, class_names, classifier_labels):
             accuracies[class_idx, j] = acc 
 
     ca_grid[:, :] = accuracies
-    visualize(ca_grid, class_names, classifier_labels, "Test Set Grid (Accuracy)")
+    visualize(ca_grid, class_names, classifier_labels, "Test Set Grid (Accuracy)",filename="test_visualization.png")
+    print("\t Testing graph succesfully saved to png.")
 
 def predict(ca_grid, classifiers, X_new, class_names, classifier_labels):
+    print("\n=== Prediction phase ===\n")
     num_classes, num_classifiers = classifiers.shape
     
     predictions = []
@@ -215,15 +231,14 @@ def predict(ca_grid, classifiers, X_new, class_names, classifier_labels):
     final_confidence = weighted_confidences[final_prediction_idx]
 
     print("\n=== Final Prediction ===")
-    print(f"Predicted class: {final_prediction} (Confidence: {final_confidence:.2f}%)")
+    print(f"Predicted class: {final_prediction} (Confidence: {final_confidence:.2f}%)\n")
 
     confidence_grid = np.zeros((len(class_names), len(classifier_labels)))
     for i, prediction in enumerate(predictions):
         confidences = prediction['confidence_scores']
         for class_idx, class_name in enumerate(class_names):
             confidence_grid[class_idx, i] = confidences.get(class_name, 0)
-    visualize(confidence_grid, class_names, classifier_labels, "Prediction Confidence Scores")
-
+    visualize(confidence_grid, class_names, classifier_labels, "Prediction Confidence Scores",filename="predict_visualization.png")
     return predictions, final_prediction, final_confidence
 
 #-----------------------------------------------------------------------------------------------------------------------
