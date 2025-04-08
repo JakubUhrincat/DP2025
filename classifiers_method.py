@@ -129,7 +129,7 @@ def visualize(grid_data, class_labels, classifier_labels, title,filename):
     
     if filepath:
         plt.tight_layout()
-        plt.savefig(filepath, dpi=300)
+        plt.savefig(filepath, dpi=600)
         plt.close()
     else:
         plt.show()

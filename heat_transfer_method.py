@@ -198,7 +198,7 @@ def visualize(CA, class_names, attribute_names, filename):
     plt.tight_layout()
     
     if filepath:
-        plt.savefig(filepath, dpi=300)
+        plt.savefig(filepath, dpi=600)
         plt.close()
     else:
         plt.show()
