@@ -256,8 +256,9 @@ def test(CA, X_test, y_test, num_classes, num_attributes, m, MIN, MAX):
     print(conf_matrix)
     print("\nAccuracy:", f"{accuracy * 100:.2f}%\n")
     for class_id in range(num_classes):
+        class_name = class_names[class_id]
         print(
-            f"Class {class_id} - Precision: {precision[class_id] * 100:.2f}%, "
+            f"Class {class_name} - Precision: {precision[class_id] * 100:.2f}%, "
             f"Recall: {recall[class_id] * 100:.2f}%, "
             f"F1 Score: {f1[class_id] * 100:.2f}%"
         )
@@ -312,7 +313,7 @@ def predict(CA, X_new, num_classes, num_attributes, m, MIN, MAX, class_names):
 
 #----------------------------------------------------------------------------------------------
 
-data_path = "glass.csv"
+data_path = "iris.csv"
 m = 5
 range_percentage = 20
 portion_percentage = 20
@@ -324,7 +325,7 @@ CA, MIN, MAX, X_test, y_test, class_names, attribute_names, num_attributes, num_
 metrics = test(CA, X_test, y_test, num_classes, num_attributes, m, MIN, MAX)
 
 #IRIS
-#X_new = np.array([[5.1, 3.5, 1.4, 0.2]])  # Expected: 'Iris-setosa'
+X_new = np.array([[5.1, 3.5, 1.4, 0.2]])  # Expected: 'Iris-setosa'
 
 #BANKNOTE
 #X_new = np.array([[1.32, -3.21, 4.56, -1.23]])  # Expected: 0
@@ -336,7 +337,7 @@ metrics = test(CA, X_test, y_test, num_classes, num_attributes, m, MIN, MAX)
 #X_new = np.array([[55.0, 1.0, 3.0, 140.0, 220.0, 0.0, 2.0, 170.0, 1.0, 1.5, 2.0, 0.0, 2.0]])  # Expected: 1 
 
 #GLASS
-X_new = np.array([[1.489, 13.3, 4.2, 1.1, 69.0, 0.0, 8.7, 0.0, 0.0]])  # Expected: Class 3
+#X_new = np.array([[1.489, 13.3, 4.2, 1.1, 69.0, 0.0, 8.7, 0.0, 0.0]])  # Expected: Class 3
 
 predictions = predict(CA, X_new, num_classes, num_attributes, m, MIN, MAX, class_names)
 
