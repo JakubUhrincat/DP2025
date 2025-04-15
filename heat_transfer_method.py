@@ -185,7 +185,7 @@ def visualize(CA, class_names, attribute_names, filename):
                    ha='center', va='center', 
                    color=text_color, fontsize=6)
         
-        ax.set_title(f"Class {class_names[i]}", fontsize=10, fontweight='bold')
+        ax.set_title(f"Class {class_names[i]}", fontsize=9, fontweight='bold')
         ax.set_yticks(np.arange(ca_grid.shape[0]))
         ax.set_yticklabels(attribute_names, fontsize=8)
         ax.set_xticks(np.arange(ca_grid.shape[1]))
@@ -320,7 +320,6 @@ portion_percentage = 20
 
 CA, MIN, MAX, X_test, y_test, class_names, attribute_names, num_attributes, num_classes = train(
     data_path, m, range_percentage, portion_percentage)
-
 
 metrics = test(CA, X_test, y_test, num_classes, num_attributes, m, MIN, MAX)
 

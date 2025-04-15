@@ -252,14 +252,8 @@ ca_grid, classifiers = initialize_CA(num_classes, num_classifiers)
 #IRIS
 X_new = np.array([[5.1, 3.5, 1.4, 0.2]])  # Expected: 'Iris-setosa'
 
-#BANKNOTE
-#X_new = np.array([[1.32, -3.21, 4.56, -1.23]])  # Expected: 0
-
 #BREAST
 #X_new = np.array([[5, 3, 3, 1, 2, 1, 3, 1, 1]])  # Expected: 2
-
-#HEART
-#X_new = np.array([[55.0, 1.0, 3.0, 140.0, 220.0, 0.0, 2.0, 170.0, 1.0, 1.5, 2.0, 0.0, 2.0]])  # Expected: 1 
 
 #GLASS
 #X_new = np.array([[1.489, 13.3, 4.2, 1.1, 69.0, 0.0, 8.7, 0.0, 0.0]])  # Expected: Class 3
